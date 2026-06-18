@@ -55,14 +55,11 @@ port.on('error', (err: Error) => {
 });
 
 /**
- * Parsea trama KRETZ Single Eco 2: "2,XX.XXX"
- * Tipo 2 = peso neto. Devuelve null si la trama es inválida.
+ * Parsea trama KRETZ Single Eco 2: STX (0x02) + "XX.XXX"
+ * Devuelve null si la trama es inválida.
  */
 function parsearPeso(trama: string): number | null {
-  const partes = trama.trim().split(',');
-  if (partes.length < 2) return null;
-  const [tipo, valorRaw] = partes;
-  if (tipo.trim() !== '2') return null;
-  const valor = parseFloat(valorRaw.trim());
-  return isNaN(valor) ? null : valor;
+  const cleaned = trama.replace(/^\x02/, '').trim();
+  const valor = parseFloat(cleaned);
+  return isNaN(valor) || !isFinite(valor) ? null : valor;
 }
