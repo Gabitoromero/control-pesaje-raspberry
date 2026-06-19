@@ -15,7 +15,10 @@ const SERVER_URL = process.env.SERVER_URL ?? 'http://localhost:3000';
 const LINEA_ID = Number(process.env.LINEA_PRODUCCION_ID ?? 1);
 
 // --- Socket.IO ---
-const socket: Socket = io(SERVER_URL, { autoConnect: false });
+const socket: Socket = io(SERVER_URL, {
+  autoConnect: false,
+  auth: { deviceSecret: process.env.DEVICE_SECRET },
+});
 
 socket.on('connect', () => {
   console.log(`[socket] Conectado al servidor: ${SERVER_URL}`);
