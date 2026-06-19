@@ -18,6 +18,10 @@ const LINEA_ID = Number(process.env.LINEA_PRODUCCION_ID ?? 1);
 const socket: Socket = io(SERVER_URL, {
   autoConnect: false,
   auth: { deviceSecret: process.env.DEVICE_SECRET },
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 2000,
+  reconnectionDelayMax: 30000,
 });
 
 socket.on('connect', () => {
@@ -27,11 +31,11 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', (reason: string) => {
-  console.warn(`[socket] Desconectado: ${reason}`);
+  console.warn(`[socket] Desconectado: ${reason}. Reconectando...`);
 });
 
 socket.on('connect_error', (err: Error) => {
-  console.error(`[socket] Error de conexión: ${err.message}`);
+  console.error(`[socket] Error de conexión: ${err.message}. Reintentando...`);
 });
 
 socket.connect();
