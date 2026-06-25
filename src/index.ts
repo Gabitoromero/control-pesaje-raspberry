@@ -22,6 +22,7 @@ const socket: Socket = io(SERVER_URL, {
   reconnectionAttempts: Infinity,
   reconnectionDelay: 2000,
   reconnectionDelayMax: 30000,
+  transports: ['websocket'],
 });
 
 socket.on('connect', () => {
