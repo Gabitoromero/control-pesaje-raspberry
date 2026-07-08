@@ -8,16 +8,30 @@
 import 'dotenv/config';
 import { SerialPort, ReadlineParser } from 'serialport';
 import { io, Socket } from 'socket.io-client';
+import fs from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
 const SERVER_URL = process.env.SERVER_URL ?? 'http://localhost:3000';
-const LINEA_ID = Number(process.env.LINEA_PRODUCCION_ID ?? 1);
+
+// --- Hardware ID (UUID) ---
+const deviceIdPath = path.join(process.cwd(), '.device-id');
+let hardwareId: string;
+
+if (fs.existsSync(deviceIdPath)) {
+  hardwareId = fs.readFileSync(deviceIdPath, 'utf8').trim();
+} else {
+  hardwareId = randomUUID();
+  fs.writeFileSync(deviceIdPath, hardwareId, 'utf8');
+  console.log(`[setup] Nuevo hardware ID generado y guardado: ${hardwareId}`);
+}
 
 // --- Socket.IO ---
 const socket: Socket = io(SERVER_URL, {
   autoConnect: false,
-  auth: { deviceSecret: process.env.DEVICE_SECRET },
+  auth: { hardwareId },
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 2000,
@@ -27,8 +41,7 @@ const socket: Socket = io(SERVER_URL, {
 
 socket.on('connect', () => {
   console.log(`[socket] Conectado al servidor: ${SERVER_URL}`);
-  socket.emit('join-linea', LINEA_ID);
-  console.log(`[socket] Emitiendo como línea ${LINEA_ID}`);
+  console.log(`[socket] Identificado con hardwareId: ${hardwareId}`);
 });
 
 socket.on('disconnect', (reason: string) => {
