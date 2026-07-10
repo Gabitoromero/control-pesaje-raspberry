@@ -33,6 +33,17 @@ export function parsearPeso(trama: string): number | null {
   return isNaN(valor) || !isFinite(valor) ? null : valor;
 }
 
+/**
+ * socket.io-client only auto-reconnects for "real" network drops (transport
+ * close, ping timeout, etc). When the SERVER initiates the disconnect (e.g.
+ * to force a device to re-pair after being reassigned to a different línea),
+ * the reason is 'io server disconnect' and the client intentionally does NOT
+ * auto-reconnect — a manual connect() call is required to resume.
+ */
+export function shouldManuallyReconnect(reason: string): boolean {
+  return reason === 'io server disconnect';
+}
+
 async function main() {
   const hardwareId = initializeDeviceUUID(process.cwd());
 
@@ -54,6 +65,10 @@ async function main() {
 
   socket.on('disconnect', (reason: string) => {
     console.warn(`[socket] Desconectado: ${reason}. Reconectando...`);
+
+    if (shouldManuallyReconnect(reason)) {
+      socket.connect();
+    }
   });
 
   socket.on('connect_error', (err: Error) => {

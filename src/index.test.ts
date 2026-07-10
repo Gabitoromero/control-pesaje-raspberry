@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { initializeDeviceUUID, parsearPeso } from './index';
+import { initializeDeviceUUID, parsearPeso, shouldManuallyReconnect } from './index';
 import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 
@@ -53,5 +53,23 @@ describe('parsearPeso', () => {
 
   it('debe retornar null para una cadena vacia', () => {
     expect(parsearPeso('')).toBeNull();
+  });
+});
+
+describe('shouldManuallyReconnect', () => {
+  it('devuelve true cuando el servidor forzó la desconexión (io server disconnect)', () => {
+    expect(shouldManuallyReconnect('io server disconnect')).toBe(true);
+  });
+
+  it('devuelve false para un corte de red real (transport close)', () => {
+    expect(shouldManuallyReconnect('transport close')).toBe(false);
+  });
+
+  it('devuelve false para un ping timeout', () => {
+    expect(shouldManuallyReconnect('ping timeout')).toBe(false);
+  });
+
+  it('devuelve false cuando el propio cliente inició la desconexión', () => {
+    expect(shouldManuallyReconnect('io client disconnect')).toBe(false);
   });
 });
