@@ -90,6 +90,11 @@ async function main() {
     if (peso === null) return;
 
     socket.emit('balanza-data', { pesoNeto: peso });
+
+    const bytes = Buffer.byteLength(JSON.stringify({ pesoNeto: peso }), 'utf8');
+    console.log(`[balanza] Tamaño del mensaje: ${bytes} bytes`);
+
+
     console.log(`[balanza] Emitido: ${peso} kg`);
   });
 
