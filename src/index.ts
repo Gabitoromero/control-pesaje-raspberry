@@ -85,17 +85,18 @@ async function main() {
     console.log(`[serial] Puerto abierto: ${PORT} @ ${BAUD_RATE} baud`);
   });
 
+  let lastPeso: number | null = null;
+
   parser.on('data', (raw: string) => {
     const peso = parsearPeso(raw);
     if (peso === null) return;
 
     socket.emit('balanza-data', { pesoNeto: peso });
 
-    const bytes = Buffer.byteLength(JSON.stringify({ pesoNeto: peso }), 'utf8');
-    console.log(`[balanza] Tamaño del mensaje: ${bytes} bytes`);
-
-
-    console.log(`[balanza] Emitido: ${peso} kg`);
+    if (peso !== lastPeso) {
+      lastPeso = peso;
+      console.log(`[balanza] Emitido: ${peso} kg`);
+    }
   });
 
   port.on('error', (err: Error) => {
