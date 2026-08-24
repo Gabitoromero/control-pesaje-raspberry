@@ -34,9 +34,6 @@ User=$USER_NAME
 ExecStart=/bin/bash $APP_DIR/start.sh
 Restart=always
 RestartSec=60
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=control-pesaje
 
 [Install]
 WantedBy=multi-user.target

@@ -95,7 +95,7 @@ async function main() {
 
     if (peso !== lastPeso) {
       lastPeso = peso;
-      console.log(`[balanza] Emitido: ${peso} kg`);
+      console.log(`[balanza] Emitido: ${peso}`);
     }
   });
 
