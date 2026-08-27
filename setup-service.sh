@@ -39,7 +39,17 @@ RestartSec=60
 WantedBy=multi-user.target
 INNER_EOF
 
-echo "=== 3. Habilitando e iniciando el servicio ==="
+echo "=== 3. Configurando journal persistente (para no perder logs si se reinicia la Raspberry) ==="
+sudo mkdir -p /etc/systemd/journald.conf.d
+sudo bash -c "cat > /etc/systemd/journald.conf.d/persistent.conf" << INNER_EOF
+[Journal]
+Storage=persistent
+SystemMaxUse=200M
+MaxRetentionSec=2week
+INNER_EOF
+sudo systemctl restart systemd-journald
+
+echo "=== 4. Habilitando e iniciando el servicio ==="
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 sudo systemctl start $SERVICE_NAME
