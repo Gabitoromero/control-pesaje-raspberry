@@ -39,8 +39,9 @@ cat > .env << 'EOF'
 SERIAL_PORT=/dev/ttyUSB0
 SERIAL_BAUD_RATE=9600
 
-# URL del backend (ej: http://tu-ip-local:3000)
-SERVER_URL=http://10.250.2.2:3000
+# URL del backend (usar el dominio, no la IP directa al puerto 3000:
+# ese puerto no está expuesto hacia afuera, todo pasa por nginx en el 80)
+SERVER_URL=http://montheladopesosproductos.com
 EOF
 echo "Editá el .env con los valores de tu entorno antes de arrancar la app"
 
