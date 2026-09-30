@@ -17,5 +17,6 @@ export function parsearPeso(trama: string): number | null {
   const valor = parseFloat(numero) * (signo === '-' ? -1 : 1);
   if (!Number.isFinite(valor)) return null;
 
-  return unidad?.toLowerCase() === 'g' ? valor / 1000 : valor;
+  // `|| 0` normaliza -0 (balanza tarada con signo negativo) a 0
+  return (unidad?.toLowerCase() === 'g' ? valor / 1000 : valor) || 0;
 }

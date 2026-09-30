@@ -109,6 +109,25 @@ describe('parsearPeso', () => {
     });
   });
 
+  describe('variantes de cabecera y unidad', () => {
+    it('debe parsear la variante GS de Ex-cell', () => {
+      expect(parsearPeso('US,GS+ 2.000kg')).toBe(2);
+    });
+
+    it('debe aceptar unidades en mayuscula', () => {
+      expect(parsearPeso('1.000KG')).toBe(1);
+      expect(parsearPeso('100.0G')).toBe(0.1);
+    });
+
+    it('debe aceptar la cabecera wn en mayuscula', () => {
+      expect(parsearPeso('WN+001.000KG')).toBe(1);
+    });
+
+    it('debe normalizar cero negativo a cero', () => {
+      expect(parsearPeso('-0.000kg')).toBe(0);
+    });
+  });
+
   describe('tramas corruptas o ambiguas', () => {
     it.each([
       ['decimal sin parte entera', '.5'],
