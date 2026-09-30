@@ -8,11 +8,13 @@
 
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from 'serialport';
+import { parsearPeso } from './parsear-peso';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
 
-// Trama KRETZ Single Eco 2: STX (0x02) + "XX.XXX" + CR — delimitamos por CR
+// KRETZ Single Eco 2: STX (0x02) + "XX.XXX" + CR. Balanza RS232 nueva: "1.000kg" + CR
+// (protocolo 7). Delimitamos por CR en ambos casos.
 const port = new SerialPort({ path: PORT, baudRate: BAUD_RATE });
 const parser = port.pipe(new ReadlineParser({ delimiter: '\r' }));
 
@@ -36,15 +38,3 @@ port.on('error', (err: Error) => {
   console.error('Error en puerto serial:', err.message);
   process.exit(1);
 });
-
-/**
- * Parsea la trama de la KRETZ Single Eco 2.
- * Formato real: STX (0x02) + "XX.XXX" (el \r ya fue consumido por el parser)
- * Devuelve el peso en kg como número, o null si la trama es inválida.
- */
-function parsearPeso(trama: string): number | null {
-  // Eliminar STX (0x02) inicial y cualquier espacio
-  const cleaned = trama.replace(/^\x02/, '').trim();
-  const valor = parseFloat(cleaned);
-  return isNaN(valor) || !isFinite(valor) ? null : valor;
-}

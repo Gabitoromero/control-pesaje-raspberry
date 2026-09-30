@@ -11,6 +11,9 @@ import { io, Socket } from 'socket.io-client';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { parsearPeso } from './parsear-peso';
+
+export { parsearPeso };
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
@@ -25,12 +28,6 @@ export function initializeDeviceUUID(cwd: string): string {
   fs.writeFileSync(deviceIdPath, hardwareId, 'utf8');
   console.log(`[setup] Nuevo hardware ID generado y guardado: ${hardwareId}`);
   return hardwareId;
-}
-
-export function parsearPeso(trama: string): number | null {
-  const cleaned = trama.replace(/^\x02/, '').trim();
-  const valor = parseFloat(cleaned);
-  return isNaN(valor) || !isFinite(valor) ? null : valor;
 }
 
 /**
