@@ -11,9 +11,7 @@ import { io, Socket } from 'socket.io-client';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { parsearPeso } from './parsear-peso';
-
-export { parsearPeso };
+import { buildBalanzaPayload, parsearTrama } from './parsear-peso';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
@@ -82,17 +80,20 @@ async function main() {
     console.log(`[serial] Puerto abierto: ${PORT} @ ${BAUD_RATE} baud`);
   });
 
-  let lastPeso: number | null = null;
+  let lastLog: string | null = null;
 
   parser.on('data', (raw: string) => {
-    const peso = parsearPeso(raw);
-    if (peso === null) return;
+    const trama = parsearTrama(raw);
+    if (trama === null) return;
 
-    socket.emit('balanza-data', { pesoNeto: peso });
+    socket.emit('balanza-data', buildBalanzaPayload(trama));
 
-    if (peso !== lastPeso) {
-      lastPeso = peso;
-      console.log(`[balanza] Emitido: ${peso}`);
+    // Log only when the reading changes: frames arrive many times per second
+    // and logging each one can exhaust stdout.
+    const current = `${trama.valor} ${trama.unidad ?? 'sin unidad'}`;
+    if (current !== lastLog) {
+      lastLog = current;
+      console.log(`[balanza] Emitido: ${current}`);
     }
   });
 

@@ -8,7 +8,7 @@
 
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from 'serialport';
-import { parsearPeso } from './parsear-peso';
+import { parsearTrama } from './parsear-peso';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
@@ -26,9 +26,10 @@ port.on('open', () => {
 parser.on('data', (raw: string) => {
   console.log('Trama cruda:', JSON.stringify(raw));
 
-  const peso = parsearPeso(raw);
-  if (peso !== null) {
-    console.log(`Peso parseado: ${peso} kg\n`);
+  const trama = parsearTrama(raw);
+  if (trama !== null) {
+    console.log(`Valor parseado: ${trama.valor}`);
+    console.log(`Unidad: ${trama.unidad ?? 'sin unidad'}\n`);
   } else {
     console.warn('Trama no reconocida — ignorada\n');
   }
