@@ -12,10 +12,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { buildBalanzaPayload, parsearTrama } from './parsear-peso';
+import { createSerialWatchdog } from './serial-watchdog';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
 const SERVER_URL = process.env.SERVER_URL ?? 'http://localhost:3000';
+// 0 disables the watchdog.
+const SERIAL_IDLE_TIMEOUT_MS = Number(process.env.SERIAL_IDLE_TIMEOUT_MS ?? 30_000);
 
 export function initializeDeviceUUID(cwd: string): string {
   const deviceIdPath = path.join(cwd, '.device-id');
@@ -76,15 +79,52 @@ async function main() {
   const port = new SerialPort({ path: PORT, baudRate: BAUD_RATE });
   const parser = port.pipe(new ReadlineParser({ delimiter: '\r' }));
 
+  let bytesRecibidos = 0;
+  let tramasValidas = 0;
+  let tramasDescartadas = 0;
+  let ultimaDescartada: string | null = null;
+
+  // Exiting lets systemd (Restart=always) reopen the port with a fresh handle,
+  // which is what recovers a hung USB-serial adapter.
+  const watchdog = createSerialWatchdog({
+    timeoutMs: SERIAL_IDLE_TIMEOUT_MS,
+    onTimeout: () => {
+      console.error(
+        `[serial] Sin tramas válidas hace ${SERIAL_IDLE_TIMEOUT_MS} ms ` +
+          `(bytes=${bytesRecibidos}, válidas=${tramasValidas}, descartadas=${tramasDescartadas}, ` +
+          `última descartada=${JSON.stringify(ultimaDescartada)}). Reiniciando proceso.`,
+      );
+      process.exit(1);
+    },
+  });
+
   port.on('open', () => {
     console.log(`[serial] Puerto abierto: ${PORT} @ ${BAUD_RATE} baud`);
+    watchdog.start();
+  });
+
+  port.on('data', (chunk: Buffer) => {
+    bytesRecibidos += chunk.length;
+  });
+
+  port.on('close', () => {
+    console.error('[serial] Puerto cerrado inesperadamente. Reiniciando proceso.');
+    watchdog.stop();
+    process.exit(1);
   });
 
   let lastLog: string | null = null;
 
   parser.on('data', (raw: string) => {
     const trama = parsearTrama(raw);
-    if (trama === null) return;
+    if (trama === null) {
+      tramasDescartadas++;
+      ultimaDescartada = raw.slice(0, 40);
+      return;
+    }
+
+    tramasValidas++;
+    watchdog.feed();
 
     socket.emit('balanza-data', buildBalanzaPayload(trama));
 
