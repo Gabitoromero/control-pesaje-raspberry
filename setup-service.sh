@@ -27,13 +27,14 @@ sudo bash -c "cat > $SERVICE_PATH" << INNER_EOF
 [Unit]
 Description=Controlador de Pesaje Monthelado
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=$USER_NAME
 ExecStart=/bin/bash $APP_DIR/start.sh
 Restart=always
-RestartSec=60
+RestartSec=1
 
 [Install]
 WantedBy=multi-user.target
