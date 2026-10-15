@@ -103,6 +103,14 @@ async function main() {
       );
       process.exit(1);
     },
+    onNoFramesSinceStart: (elapsedMs) => {
+      console.warn(
+        `[serial] Sin tramas válidas desde el inicio (${Math.round(elapsedMs / 1000)} s) ` +
+          `(bytes=${bytesRecibidos}, válidas=${tramasValidas}, descartadas=${tramasDescartadas}, ` +
+          `última descartada=${JSON.stringify(ultimaDescartada)}). ` +
+          `NO se reinicia el proceso: la balanza puede estar apagada.`,
+      );
+    },
   });
 
   port.on('open', () => {
