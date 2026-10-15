@@ -13,6 +13,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { buildBalanzaPayload, parsearTrama } from './parsear-peso';
 import { createSerialWatchdog } from './serial-watchdog';
+import { createServerErrorLogger } from './server-error-log';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
@@ -56,7 +57,10 @@ async function main() {
     transports: ['websocket'],
   });
 
+  const serverErrorLogger = createServerErrorLogger();
+
   socket.on('connect', () => {
+    serverErrorLogger.reset();
     console.log(`[socket] Conectado al servidor: ${SERVER_URL}`);
     console.log(`[socket] Identificado con hardwareId: ${hardwareId}`);
   });
@@ -68,6 +72,9 @@ async function main() {
       socket.connect();
     }
   });
+
+  // The server rejects frames (e.g. unit not configured) via `error` events.
+  socket.on('error', serverErrorLogger.onServerError);
 
   socket.on('connect_error', (err: Error) => {
     console.error(`[socket] Error de conexión: ${err.message}. Reintentando...`);
