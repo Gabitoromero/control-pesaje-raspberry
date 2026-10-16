@@ -2,7 +2,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { buildDiagnostico, registerDiagnosticoHandler } from './diagnostico';
 import { createRbState } from './rb-state';
 
-const SERIAL_OPEN = { isOpen: true, path: '/dev/ttyUSB0', baud: 9600 };
+const SERIAL_OPEN = {
+  isOpen: true,
+  path: '/dev/ttyUSB0',
+  baud: 9600,
+  ultimoError: null,
+  ultimoErrorHaceMs: null,
+  intentosFallidos: 0,
+};
 
 describe('buildDiagnostico', () => {
   it('builds the v1 response shape', () => {
@@ -18,7 +25,15 @@ describe('buildDiagnostico', () => {
     expect(diag).toEqual({
       v: 1,
       version: 'abc1234',
-      serial: { abierto: true, path: '/dev/ttyUSB0', baud: 9600, ultimoByteHaceMs: 1000 },
+      serial: {
+        abierto: true,
+        path: '/dev/ttyUSB0',
+        baud: 9600,
+        ultimoByteHaceMs: 1000,
+        ultimoError: null,
+        ultimoErrorHaceMs: null,
+        intentosFallidos: 0,
+      },
       contadores: { bytes: 30, validas: 1, descartadas: 1, ultimaDescartada: 'garbage' },
       tramasCrudas: [{ t: 9000, raw: '  1.234 kg' }],
       logs: ['a log line'],
@@ -37,6 +52,27 @@ describe('buildDiagnostico', () => {
       now: 5,
     });
     expect(diag.serial.abierto).toBe(false);
+  });
+
+  it('exposes the last serial error and failed attempts when the port is closed', () => {
+    const diag = buildDiagnostico(createRbState(), {
+      version: 'x',
+      serial: {
+        ...SERIAL_OPEN,
+        isOpen: false,
+        ultimoError: 'ENOENT: no such file or directory, cannot open /dev/ttyUSB0',
+        ultimoErrorHaceMs: 3000,
+        intentosFallidos: 12,
+      },
+      now: 5,
+    });
+    expect(diag.v).toBe(1);
+    expect(diag.serial).toMatchObject({
+      abierto: false,
+      ultimoError: 'ENOENT: no such file or directory, cannot open /dev/ttyUSB0',
+      ultimoErrorHaceMs: 3000,
+      intentosFallidos: 12,
+    });
   });
 
   it('exposes only the contract keys (no operator data)', () => {

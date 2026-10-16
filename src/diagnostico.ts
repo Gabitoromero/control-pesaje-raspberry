@@ -4,12 +4,25 @@ export interface SerialInfo {
   isOpen: boolean;
   path: string;
   baud: number;
+  ultimoError: string | null;
+  ultimoErrorHaceMs: number | null;
+  intentosFallidos: number;
+}
+
+export interface SerialDiagnostico {
+  abierto: boolean;
+  path: string;
+  baud: number;
+  ultimoByteHaceMs: number | null;
+  ultimoError: string | null;
+  ultimoErrorHaceMs: number | null;
+  intentosFallidos: number;
 }
 
 export interface DiagnosticoV1 {
   v: 1;
   version: string;
-  serial: { abierto: boolean; path: string; baud: number; ultimoByteHaceMs: number | null };
+  serial: SerialDiagnostico;
   contadores: {
     bytes: number;
     validas: number;
@@ -32,6 +45,9 @@ export function buildDiagnostico(
       path: serial.path,
       baud: serial.baud,
       ultimoByteHaceMs: state.ultimoByteAt === null ? null : now - state.ultimoByteAt,
+      ultimoError: serial.ultimoError,
+      ultimoErrorHaceMs: serial.ultimoErrorHaceMs,
+      intentosFallidos: serial.intentosFallidos,
     },
     contadores: {
       bytes: state.bytesRecibidos,

@@ -19,6 +19,7 @@ import { installLogCapture } from './log-capture';
 import { readGitVersion } from './version';
 import { buildDiagnostico, registerDiagnosticoHandler } from './diagnostico';
 import { parseSerialIdleTimeoutMs } from './config';
+import { createSerialSupervisor } from './serial-supervisor';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
@@ -69,14 +70,16 @@ async function main() {
   });
 
   const serverErrorLogger = createServerErrorLogger();
+  let serialSupervisor: ReturnType<typeof createSerialSupervisor>;
 
-  registerDiagnosticoHandler(socket, () =>
-    buildDiagnostico(state, {
+  registerDiagnosticoHandler(socket, () => {
+    const { abierto, ...estado } = serialSupervisor.getEstado();
+    return buildDiagnostico(state, {
       version,
-      serial: { isOpen: port.isOpen, path: PORT, baud: BAUD_RATE },
+      serial: { isOpen: abierto, path: PORT, baud: BAUD_RATE, ...estado },
       now: Date.now(),
-    }),
-  );
+    });
+  });
 
   socket.on('connect', () => {
     serverErrorLogger.reset();
@@ -102,11 +105,8 @@ async function main() {
   socket.connect();
 
   // --- Puerto serial ---
-  const port = new SerialPort({ path: PORT, baudRate: BAUD_RATE });
-  const parser = port.pipe(new ReadlineParser({ delimiter: '\r' }));
-
-  // Exiting lets systemd (Restart=always) reopen the port with a fresh handle,
-  // which is what recovers a hung USB-serial adapter.
+  // The idle watchdog restarts the process (off by default); it is armed each
+  // time the port (re)opens.
   const watchdog = createSerialWatchdog({
     timeoutMs: SERIAL_IDLE_TIMEOUT_MS,
     onTimeout: () => {
@@ -127,24 +127,9 @@ async function main() {
     },
   });
 
-  port.on('open', () => {
-    console.log(`[serial] Puerto abierto: ${PORT} @ ${BAUD_RATE} baud`);
-    watchdog.start();
-  });
-
-  port.on('data', (chunk: Buffer) => {
-    state.onBytes(chunk.length, Date.now());
-  });
-
-  port.on('close', () => {
-    console.error('[serial] Puerto cerrado inesperadamente. Reiniciando proceso.');
-    watchdog.stop();
-    process.exit(1);
-  });
-
   let lastLog: string | null = null;
 
-  parser.on('data', (raw: string) => {
+  const onFrame = (raw: string) => {
     state.onRaw(raw, Date.now());
     const trama = parsearTrama(raw);
     if (trama === null) {
@@ -164,12 +149,23 @@ async function main() {
       lastLog = current;
       console.log(`[balanza] Emitido: ${current}`);
     }
-  });
+  };
 
-  port.on('error', (err: Error) => {
-    console.error('[serial] Error:', err.message);
-    process.exit(1);
+  // The process never exits because of the serial port: the supervisor keeps
+  // retrying (a USB re-enumeration is recovered in-process).
+  serialSupervisor = createSerialSupervisor({
+    path: PORT,
+    baud: BAUD_RATE,
+    createPort: () => {
+      const port = new SerialPort({ path: PORT, baudRate: BAUD_RATE, autoOpen: false });
+      port.pipe(new ReadlineParser({ delimiter: '\r' })).on('data', onFrame);
+      return port;
+    },
+    onOpen: () => watchdog.start(),
+    onClose: () => watchdog.stop(),
+    onBytes: (count) => state.onBytes(count, Date.now()),
   });
+  serialSupervisor.start();
 }
 
 if (process.env.NODE_ENV !== 'test') {
