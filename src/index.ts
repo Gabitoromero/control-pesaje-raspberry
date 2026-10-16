@@ -14,12 +14,17 @@ import { randomUUID } from 'node:crypto';
 import { buildBalanzaPayload, parsearTrama } from './parsear-peso';
 import { createSerialWatchdog } from './serial-watchdog';
 import { createServerErrorLogger } from './server-error-log';
+import { createRbState } from './rb-state';
+import { installLogCapture } from './log-capture';
+import { readGitVersion } from './version';
+import { buildDiagnostico, registerDiagnosticoHandler } from './diagnostico';
+import { parseSerialIdleTimeoutMs } from './config';
 
 const PORT = process.env.SERIAL_PORT ?? '/dev/ttyUSB0';
 const BAUD_RATE = Number(process.env.SERIAL_BAUD_RATE ?? 9600);
 const SERVER_URL = process.env.SERVER_URL ?? 'http://localhost:3000';
-// 0 disables the watchdog.
-const SERIAL_IDLE_TIMEOUT_MS = Number(process.env.SERIAL_IDLE_TIMEOUT_MS ?? 30_000);
+// 0 (the default) disables the watchdog.
+const SERIAL_IDLE_TIMEOUT_MS = parseSerialIdleTimeoutMs(process.env.SERIAL_IDLE_TIMEOUT_MS);
 
 export function initializeDeviceUUID(cwd: string): string {
   const deviceIdPath = path.join(cwd, '.device-id');
@@ -44,6 +49,12 @@ export function shouldManuallyReconnect(reason: string): boolean {
 }
 
 async function main() {
+  const state = createRbState();
+  // First thing at boot so the diagnostic log ring sees every line.
+  installLogCapture(state.logs);
+  const version = readGitVersion();
+  console.log(`[setup] Versión: ${version}`);
+
   const hardwareId = initializeDeviceUUID(process.cwd());
 
   // --- Socket.IO ---
@@ -58,6 +69,14 @@ async function main() {
   });
 
   const serverErrorLogger = createServerErrorLogger();
+
+  registerDiagnosticoHandler(socket, () =>
+    buildDiagnostico(state, {
+      version,
+      serial: { isOpen: port.isOpen, path: PORT, baud: BAUD_RATE },
+      now: Date.now(),
+    }),
+  );
 
   socket.on('connect', () => {
     serverErrorLogger.reset();
@@ -86,11 +105,6 @@ async function main() {
   const port = new SerialPort({ path: PORT, baudRate: BAUD_RATE });
   const parser = port.pipe(new ReadlineParser({ delimiter: '\r' }));
 
-  let bytesRecibidos = 0;
-  let tramasValidas = 0;
-  let tramasDescartadas = 0;
-  let ultimaDescartada: string | null = null;
-
   // Exiting lets systemd (Restart=always) reopen the port with a fresh handle,
   // which is what recovers a hung USB-serial adapter.
   const watchdog = createSerialWatchdog({
@@ -98,16 +112,16 @@ async function main() {
     onTimeout: () => {
       console.error(
         `[serial] Sin tramas válidas hace ${SERIAL_IDLE_TIMEOUT_MS} ms ` +
-          `(bytes=${bytesRecibidos}, válidas=${tramasValidas}, descartadas=${tramasDescartadas}, ` +
-          `última descartada=${JSON.stringify(ultimaDescartada)}). Reiniciando proceso.`,
+          `(bytes=${state.bytesRecibidos}, válidas=${state.tramasValidas}, descartadas=${state.tramasDescartadas}, ` +
+          `última descartada=${JSON.stringify(state.ultimaDescartada)}). Reiniciando proceso.`,
       );
       process.exit(1);
     },
     onNoFramesSinceStart: (elapsedMs) => {
       console.warn(
         `[serial] Sin tramas válidas desde el inicio (${Math.round(elapsedMs / 1000)} s) ` +
-          `(bytes=${bytesRecibidos}, válidas=${tramasValidas}, descartadas=${tramasDescartadas}, ` +
-          `última descartada=${JSON.stringify(ultimaDescartada)}). ` +
+          `(bytes=${state.bytesRecibidos}, válidas=${state.tramasValidas}, descartadas=${state.tramasDescartadas}, ` +
+          `última descartada=${JSON.stringify(state.ultimaDescartada)}). ` +
           `NO se reinicia el proceso: la balanza puede estar apagada.`,
       );
     },
@@ -119,7 +133,7 @@ async function main() {
   });
 
   port.on('data', (chunk: Buffer) => {
-    bytesRecibidos += chunk.length;
+    state.onBytes(chunk.length, Date.now());
   });
 
   port.on('close', () => {
@@ -131,14 +145,14 @@ async function main() {
   let lastLog: string | null = null;
 
   parser.on('data', (raw: string) => {
+    state.onRaw(raw, Date.now());
     const trama = parsearTrama(raw);
     if (trama === null) {
-      tramasDescartadas++;
-      ultimaDescartada = raw.slice(0, 40);
+      state.onDescartada(raw);
       return;
     }
 
-    tramasValidas++;
+    state.onValida();
     watchdog.feed();
 
     socket.emit('balanza-data', buildBalanzaPayload(trama));
